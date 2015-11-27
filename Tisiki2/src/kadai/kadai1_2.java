@@ -2,6 +2,9 @@ package kadai;
 
 
 import java.io.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 
 public class kadai1_2 {
 
@@ -57,28 +60,37 @@ public class kadai1_2 {
     }
 
     public void writeJakobi() throws IOException {
-        double[][] datas = new double[DATA_SIZE][DATA_SIZE];
-        double[] lambda;
+        JacobiKey[] yakobi;
         for (int k = 0; k < FILE_NUM; k++) {
-            datas = getJakobi(k);
+            yakobi = getJakobi(k);
             PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter(_getFileName(k + 1, MODE_VECTOR_OUTPUT))));
             PrintWriter lm = new PrintWriter(new BufferedWriter(new FileWriter(_getFileName(k + 1, MODE_LAMBDA_OUTPUT))));
+            //ソートしました
+            Collections.sort(Arrays.asList(yakobi), new Comparator<JacobiKey>() {
+                @Override
+                public int compare(JacobiKey o1, JacobiKey o2) {
+                    if (o1.getLambda() < o2.getLambda()) {
+                        return 1;
+                    } else if (o1.getLambda() > o2.getLambda()) {
+                        return -1;
+                    } else {
+                        return 0;
+                    }
+                }
+            });
+
             for (int j = 0; j < DATA_SIZE; j++) {
                 for (int i = 0; i < DATA_SIZE; i++) {
-                    pw.print(String.format("%1$11.6f ", datas[j][i]));
+                    pw.print(String.format("%1$11.6f ", yakobi[j].getADatas()[i]));
                 }
+                lm.println(String.format("%1$11.6f ", yakobi[j].getLambda()));
                 pw.println();
             }
+            System.out.println("最初" + yakobi[0].getLambda());
             pw.close();
+            lm.close();
             System.out.println("固有ベクトルファイル" + _getFileName(k + 1, MODE_VECTOR_OUTPUT) + "作成完了");
 
-            lambda = getDiagonalComponent(datas);
-//            Arrays.sort(lambda);
-//            for (int i = DATA_SIZE - 1; i >= 0; i--) {
-//                lm.println(String.format("%1$11.6f", lambda[i]));
-//            }
-//            lm.close();
-//            System.out.println("固有値ファイル" + _getFileName(k + 1, MODE_LAMBDA_OUTPUT) + "作成完了");
 
         }
 
@@ -98,9 +110,10 @@ public class kadai1_2 {
         return result;
     }
 
-    public double[][] getJakobi(int moji) {
+    public JacobiKey[] getJakobi(int moji) {
         double[][] cova = getCovariance(moji); //covarince。共分散行列
         double[][] result = new double[DATA_SIZE][DATA_SIZE];
+        JacobiKey[] yakobi = new JacobiKey[DATA_SIZE];
         int count = 0, i = 0, j = 0;
         boolean status = false;
         double amax, amaxtmp, theta, co, si, co2, si2, cosi, aii, aij, ajj, aik, ajk;
@@ -110,9 +123,6 @@ public class kadai1_2 {
         }
 
         while (count <= LOOP_MAX) {
-//            if (count % 1000 == 0) {
-//                System.out.println(count + "回目");
-//            }
             amax = 0.0;
             //非対角成分の最大値を検索するのじゃ
             for (int k = 0; k < DATA_SIZE; k++) {
@@ -126,7 +136,6 @@ public class kadai1_2 {
                     }
                 }
             }
-//            System.out.println("max is " + amax);
 
             //収束判定するよ
             if (amax <= EPS) {
@@ -173,7 +182,11 @@ public class kadai1_2 {
                 count++;
             }
         }
-        return result;
+        double[] lamda = getDiagonalComponent(cova);
+        for (int k = 0; k < DATA_SIZE; k++) {
+            yakobi[k] = new JacobiKey(result[k], lamda[k]);
+        }
+        return yakobi;
 
     }
 
@@ -314,21 +327,33 @@ public class kadai1_2 {
         }
     }
 
-    public class SortKey {
-        double key;
-        double[] datas;
+    /**
+     * 行列を一つ保持し、その中にラムダの値を入れられる
+     */
+    public class JacobiKey {
+        private double[] _datas;
+        private double _lambda;
 
-        public SortKey(double key, double[] datas) {
-            this.key = key;
-            this.datas = datas;
+        public JacobiKey(double[] _datas, double _lambda) {
+            this._datas = _datas;
+            this._lambda = _lambda;
         }
 
-        public double getKey() {
-            return key;
+        public void setLambda(double lambda) {
+            _lambda = lambda;
+        }
+
+        public double getLambda() {
+            return _lambda;
         }
 
         public double[] getADatas() {
-            return datas;
+            return _datas;
+        }
+
+
+        public void setADatas(double[] datas) {
+            this._datas = datas;
         }
     }
 }
