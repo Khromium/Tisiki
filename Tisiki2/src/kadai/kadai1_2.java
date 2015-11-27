@@ -79,7 +79,6 @@ public class kadai1_2 {
 //            }
 //            lm.close();
 //            System.out.println("固有値ファイル" + _getFileName(k + 1, MODE_LAMBDA_OUTPUT) + "作成完了");
-            //✌( ◔౪◔)✌キチガイ実装思いついた。
 
         }
 
