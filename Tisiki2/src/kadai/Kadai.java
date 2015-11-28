@@ -64,10 +64,9 @@ public class Kadai {
                 lm.println(String.format("%1$11.6f ", yakobi[j].getLambda()));
                 pw.println();
             }
-            System.out.println("最初" + yakobi[0].getLambda());
             pw.close();
             lm.close();
-            System.out.println("固有ベクトルファイル" + KadaiData.getFileName(k + 1, KadaiData.MODE_VECTOR_OUTPUT) + "作成完了");
+            System.out.println(KadaiData.getFileName(k + 1, KadaiData.MODE_VECTOR_OUTPUT) + "　" + KadaiData.getFileName(k + 1, KadaiData.MODE_LAMBDA_OUTPUT) + "作成完了");
 
 
         }
@@ -170,7 +169,7 @@ public class Kadai {
         double[] lamda = getDiagonalComponent(cova);
         double[] column;
         for (int k = 0; k < KadaiData.DATA_SIZE; k++) {
-            column =new double[KadaiData.DATA_SIZE];
+            column = new double[KadaiData.DATA_SIZE];
             for (int m = 0; m < KadaiData.DATA_SIZE; m++) {
                 column[m] = result[m][k];
             }
