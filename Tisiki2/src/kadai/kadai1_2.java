@@ -183,8 +183,14 @@ public class kadai1_2 {
             }
         }
         double[] lamda = getDiagonalComponent(cova);
+        double[] column;
+
         for (int k = 0; k < DATA_SIZE; k++) {
-            yakobi[k] = new JacobiKey(result[k], lamda[k]);
+            column = new double[DATA_SIZE];
+            for (int m = 0; m < DATA_SIZE; m++) {
+                column[m] = result[m][k];
+            }
+            yakobi[k] = new JacobiKey(column, lamda[k]);
         }
         return yakobi;
 
