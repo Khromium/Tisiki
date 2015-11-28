@@ -168,8 +168,9 @@ public class Kadai {
             }
         }
         double[] lamda = getDiagonalComponent(cova);
-        double[] column = new double[KadaiData.DATA_SIZE];
+        double[] column;
         for (int k = 0; k < KadaiData.DATA_SIZE; k++) {
+            column =new double[KadaiData.DATA_SIZE];
             for (int m = 0; m < KadaiData.DATA_SIZE; m++) {
                 column[m] = result[m][k];
             }
