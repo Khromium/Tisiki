@@ -39,7 +39,7 @@ public class kadai1_2 {
 //            a.writeAvarageFetureArray();
 //            System.out.println("分散・共分散行列を計算して書き込みます。");
 //            a.writeCovariance();
-            System.out.println("ヤコビるよ");
+            System.out.println("ヤコビ法を使い、固有値・固有ベクトルを算出し、書き込みます。");
             a.writeJakobi();
         } catch (Exception e) {
             System.out.println("ERROR\n" + e.toString());
@@ -47,19 +47,25 @@ public class kadai1_2 {
     }
 
 
-    /**
-     * 配列に取り込んだデータを取得します。
-     *
-     * @param file ファイル番号
-     * @param num  文字番号
-     * @param fea  特徴番号
-     * @return データ
-     */
-    public double getData(int file, int num, int fea) {
-        return datas[file][num][fea];
-    }
+//    /**
+//     * 配列に取り込んだデータを取得します。
+//     *
+//     * @param file ファイル番号
+//     * @param num  文字番号
+//     * @param fea  特徴番号
+//     * @return データ
+//     */
+//    public double getData(int file, int num, int fea) {
+//        return datas[file][num][fea];
+//    }
 
-    public void writeJakobi() throws IOException {
+    /**
+     * ヤコビ行列を計算し、書き込みます
+     *
+     * @throws IOException          書き込みができなかった時
+     * @throws EndressLoopException 値が収束しなかった時
+     */
+    public void writeJakobi() throws IOException, EndressLoopException {
         JacobiKey[] yakobi;
         for (int k = 0; k < FILE_NUM; k++) {
             yakobi = getJakobi(k);
@@ -110,13 +116,21 @@ public class kadai1_2 {
         return result;
     }
 
-    public JacobiKey[] getJakobi(int moji) {
+    /**
+     * ヤコビ法を行い、固有値固有ベクトルを計算します
+     *
+     * @param moji 何文字目か
+     * @return 固有値固有ベクトルのセット
+     * @throws EndressLoopException 値が収束しなかった時。
+     */
+    public JacobiKey[] getJakobi(int moji) throws EndressLoopException {
         double[][] cova = getCovariance(moji); //covarince。共分散行列
         double[][] result = new double[DATA_SIZE][DATA_SIZE];
         JacobiKey[] yakobi = new JacobiKey[DATA_SIZE];
-        int count = 0, i = 0, j = 0;
         boolean status = false;
+        int count = 0, i = 0, j = 0;
         double amax, amaxtmp, theta, co, si, co2, si2, cosi, aii, aij, ajj, aik, ajk;
+
         //対角成分が1の行列を作成します。
         for (int k = 0; k < DATA_SIZE; k++) {
             result[k][k] = 1.0;
@@ -124,7 +138,7 @@ public class kadai1_2 {
 
         while (count <= LOOP_MAX) {
             amax = 0.0;
-            //非対角成分の最大値を検索するのじゃ
+            //非対角成分の最大値を検索
             for (int k = 0; k < DATA_SIZE; k++) {
                 for (int m = k + 1; m < DATA_SIZE; m++) {
                     if (m == k) continue;
@@ -140,13 +154,12 @@ public class kadai1_2 {
             //収束判定するよ
             if (amax <= EPS) {
                 status = true;
-                break;//ループから抜ける
+                break;
             } else {
                 aii = cova[i][i];
                 aij = cova[i][j];
                 ajj = cova[j][j];
 
-                //回転角の計算を行うよ
                 if (Math.abs(aii - ajj) < EPS) {
                     theta = 0.25 * Math.PI * aij / Math.abs(aij);
                 } else {
@@ -158,7 +171,7 @@ public class kadai1_2 {
                 co2 = Math.pow(co, 2);
                 si2 = Math.pow(si, 2);
                 cosi = co * si;
-                //相似変換行列
+
                 cova[i][i] = co2 * aii + 2.0 * cosi * aij + si2 * ajj;
                 cova[j][j] = si2 * aii - 2.0 * cosi * aij + co2 * ajj;
                 cova[i][j] = 0.0;
@@ -183,15 +196,15 @@ public class kadai1_2 {
             }
         }
         double[] lamda = getDiagonalComponent(cova);
-        double[] column;
-
+        double[] column = new double[DATA_SIZE];
         for (int k = 0; k < DATA_SIZE; k++) {
-            column = new double[DATA_SIZE];
             for (int m = 0; m < DATA_SIZE; m++) {
                 column[m] = result[m][k];
             }
             yakobi[k] = new JacobiKey(column, lamda[k]);
         }
+
+        if (status == false) throw new EndressLoopException("値が収束しませんでした");
         return yakobi;
 
     }
@@ -334,7 +347,7 @@ public class kadai1_2 {
     }
 
     /**
-     * 行列を一つ保持し、その中にラムダの値を入れられる
+     * 行列を一つ保持し、その中にラムダの値を入れられるクラス
      */
     public class JacobiKey {
         private double[] _datas;
@@ -345,9 +358,9 @@ public class kadai1_2 {
             this._lambda = _lambda;
         }
 
-        public void setLambda(double lambda) {
-            _lambda = lambda;
-        }
+//        public void setLambda(double lambda) {
+//            _lambda = lambda;
+//        }
 
         public double getLambda() {
             return _lambda;
@@ -357,9 +370,17 @@ public class kadai1_2 {
             return _datas;
         }
 
+//        public void setADatas(double[] datas) {
+//            this._datas = datas;
+//        }
+    }
 
-        public void setADatas(double[] datas) {
-            this._datas = datas;
+    /**
+     * 値が収束しなかったとき用
+     */
+    class EndressLoopException extends Exception {
+        public EndressLoopException(String str) {
+            super(str);
         }
     }
 }
