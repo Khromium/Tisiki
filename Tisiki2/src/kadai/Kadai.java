@@ -11,6 +11,7 @@ public class Kadai {
     public static final int LOOP_MAX = 500000000;   //最大繰り返し回数
     public static final double EPS = 1.0e-5;        //収束条件
     private KadaiData kadaiData;
+    public static final int THREAD = 4;
 
     public Kadai() {
         kadaiData = new KadaiData();
@@ -24,54 +25,75 @@ public class Kadai {
 //            System.out.println("分散・共分散行列を計算して書き込みます。");
 //            a.writeCovariance();
             System.out.println("ヤコビ法を使い、固有値・固有ベクトルを算出し、書き込みます。");
-            a.writeJakobi();
+//            a.writeJakobi();
+            a.threadAdapter();
         } catch (Exception e) {
             System.out.println("ERROR\n" + e.toString());
         }
     }
 
-
-    /**
-     * ヤコビ行列を計算し、書き込みます
-     *
-     * @throws IOException          書き込みができなかった時
-     * @throws EndressLoopException 値が収束しなかった時
-     */
-    public void writeJakobi() throws IOException, EndressLoopException {
-        JacobiKey[] yakobi;
-        for (int k = 0; k < KadaiData.FILE_NUM; k++) {
-            yakobi = getJakobi(k);
-            PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter(KadaiData.getFileName(k + 1, KadaiData.MODE_VECTOR_OUTPUT))));
-            PrintWriter lm = new PrintWriter(new BufferedWriter(new FileWriter(KadaiData.getFileName(k + 1, KadaiData.MODE_LAMBDA_OUTPUT))));
-            //ソートしました
-            Collections.sort(Arrays.asList(yakobi), new Comparator<JacobiKey>() {
-                @Override
-                public int compare(JacobiKey o1, JacobiKey o2) {
-                    if (o1.getLambda() < o2.getLambda()) {
-                        return 1;
-                    } else if (o1.getLambda() > o2.getLambda()) {
-                        return -1;
-                    } else {
-                        return 0;
-                    }
-                }
-            });
-
-            for (int j = 0; j < KadaiData.DATA_SIZE; j++) {
-                for (int i = 0; i < KadaiData.DATA_SIZE; i++) {
-                    pw.print(String.format("%1$11.6f ", yakobi[j].getADatas()[i]));
-                }
-                lm.println(String.format("%1$11.6f ", yakobi[j].getLambda()));
-                pw.println();
+    public void threadAdapter() throws InterruptedException {
+        long start = System.currentTimeMillis();
+        int cnt = 0;
+        SubThread[] sub = new SubThread[THREAD];
+        int range = (int) Math.floor(KadaiData.FILE_NUM / THREAD);
+        for (int i = 0; i < THREAD; i++) {
+            if ((THREAD - i - 1) != 0) {
+                sub[i] = new SubThread(cnt, cnt + range);
+            } else {
+                sub[i] = new SubThread(cnt, KadaiData.FILE_NUM);
             }
-            pw.close();
-            lm.close();
-            System.out.println(KadaiData.getFileName(k + 1, KadaiData.MODE_VECTOR_OUTPUT) + "　" + KadaiData.getFileName(k + 1, KadaiData.MODE_LAMBDA_OUTPUT) + "作成完了");
-
-
+            sub[i].start();
+            cnt += range;
         }
-
+        for (int i = 0; i < THREAD; i++) {
+            sub[i].join();
+        }
+        long end = System.currentTimeMillis();
+        System.out.println("処理時間" + (end - start) + "ms");
+        System.out.println("1ファイルあたりの処理時間" + (int)(end - start) / KadaiData.FILE_NUM + "ms");
     }
+//
+//    /**
+//     * ヤコビ行列を計算し、書き込みます
+//     *
+//     * @throws IOException          書き込みができなかった時
+//     * @throws EndressLoopException 値が収束しなかった時
+//     */
+//    public void writeJakobi() throws IOException, EndressLoopException {
+//        JacobiKey[] yakobi;
+//        for (int k = 0; k < KadaiData.FILE_NUM; k++) {
+//            long start = System.currentTimeMillis();
+//            yakobi = getJakobi(k);
+//            PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter(KadaiData.getFileName(k + 1, KadaiData.MODE_VECTOR_OUTPUT))));
+//            PrintWriter lm = new PrintWriter(new BufferedWriter(new FileWriter(KadaiData.getFileName(k + 1, KadaiData.MODE_LAMBDA_OUTPUT))));
+//            //ソートしました
+//            Collections.sort(Arrays.asList(yakobi), new Comparator<JacobiKey>() {
+//                @Override
+//                public int compare(JacobiKey o1, JacobiKey o2) {
+//                    if (o1.getLambda() < o2.getLambda()) {
+//                        return 1;
+//                    } else if (o1.getLambda() > o2.getLambda()) {
+//                        return -1;
+//                    } else {
+//                        return 0;
+//                    }
+//                }
+//            });
+//            for (int j = 0; j < KadaiData.DATA_SIZE; j++) {
+//                for (int i = 0; i < KadaiData.DATA_SIZE; i++) {
+//                    pw.print(String.format("%1$11.6f ", yakobi[j].getADatas()[i]));
+//                }
+//                lm.println(String.format("%1$11.6f ", yakobi[j].getLambda()));
+//                pw.println();
+//            }
+//            pw.close();
+//            lm.close();
+//            long end = System.currentTimeMillis();
+//            System.out.println("処理時間" + (end - start) + "ms");
+//            System.out.println(KadaiData.getFileName(k + 1, KadaiData.MODE_VECTOR_OUTPUT) + "　" + KadaiData.getFileName(k + 1, KadaiData.MODE_LAMBDA_OUTPUT) + "作成完了");
+//        }
+//    }
 
     /**
      * 対角行列を返します。
@@ -281,6 +303,69 @@ public class Kadai {
     class EndressLoopException extends Exception {
         public EndressLoopException(String str) {
             super(str);
+        }
+    }
+
+    /**
+     * ヤコビ法がトロすぎるのでマルチスレッド化
+     */
+    class SubThread extends Thread {
+        private int _start;
+        private int _end;
+
+        public SubThread(int start, int end) {
+            _start = start;
+            _end = end;
+        }
+
+        public void run() {
+            try {
+                writeJakobiMod();
+            } catch (Exception e) {
+                System.out.println(e.toString());
+                System.exit(1);
+            }
+        }
+
+        /**
+         * ヤコビ行列を計算し、書き込みます
+         *
+         * @throws IOException          書き込みができなかった時
+         * @throws EndressLoopException 値が収束しなかった時
+         */
+        public void writeJakobiMod() throws IOException, EndressLoopException {
+            JacobiKey[] yakobi;
+            for (int k = _start; k < _end; k++) {
+
+                yakobi = getJakobi(k);
+                PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter(KadaiData.getFileName(k + 1, KadaiData.MODE_VECTOR_OUTPUT))));
+                PrintWriter lm = new PrintWriter(new BufferedWriter(new FileWriter(KadaiData.getFileName(k + 1, KadaiData.MODE_LAMBDA_OUTPUT))));
+                //ソートしました
+                Collections.sort(Arrays.asList(yakobi), new Comparator<JacobiKey>() {
+                    @Override
+                    public int compare(JacobiKey o1, JacobiKey o2) {
+                        if (o1.getLambda() < o2.getLambda()) {
+                            return 1;
+                        } else if (o1.getLambda() > o2.getLambda()) {
+                            return -1;
+                        } else {
+                            return 0;
+                        }
+                    }
+                });
+
+                for (int j = 0; j < KadaiData.DATA_SIZE; j++) {
+                    for (int i = 0; i < KadaiData.DATA_SIZE; i++) {
+                        pw.print(String.format("%1$11.6f ", yakobi[j].getADatas()[i]));
+                    }
+                    lm.println(String.format("%1$11.6f ", yakobi[j].getLambda()));
+                    pw.println();
+                }
+                pw.close();
+                lm.close();
+                System.out.println(KadaiData.getFileName(k + 1, KadaiData.MODE_VECTOR_OUTPUT) + "　" + KadaiData.getFileName(k + 1, KadaiData.MODE_LAMBDA_OUTPUT) + "作成完了");
+            }
+
         }
     }
 }
