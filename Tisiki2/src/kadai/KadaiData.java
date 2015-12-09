@@ -70,7 +70,7 @@ public class KadaiData {
      * @param place 何番目のデータか
      * @return データ
      */
-    public double getConponentOf(int moji, int dataNum, int place) {
+    public double getComponentOf(int moji, int dataNum, int place) {
         return datas[moji][dataNum][place];
     }
 
