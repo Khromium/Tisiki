@@ -13,6 +13,9 @@ public class Kadai {
     private KadaiData kadaiData;
     public static final int THREAD = 4;
 
+    /**
+     * 課題データを読み込みます。
+     */
     public Kadai() {
         kadaiData = new KadaiData();
     }
@@ -24,14 +27,155 @@ public class Kadai {
 //            a.writeAvarageFetureArray();
 //            System.out.println("分散・共分散行列を計算して書き込みます。");
 //            a.writeCovariance();
-            System.out.println("ヤコビ法を使い、固有値・固有ベクトルを算出し、書き込みます。");
+//            System.out.println("ヤコビ法を使い、固有値・固有ベクトルを算出し、書き込みます。");
 //            a.writeJakobi();
-            a.threadAdapter();
+//            a.threadAdapter();
+            a.printMahalanobis();
         } catch (Exception e) {
             System.out.println("ERROR\n" + e.toString());
         }
     }
 
+    public void printMahalanobis() {
+        double bios = 30;//biasです。
+        int result;
+        int all = 0;
+        double val, d;//比較用の値を収納しておくところ
+        double buf;//buffer
+        double[][] ave = new double[KadaiData.FILE_NUM][KadaiData.DATA_SIZE];//共分散行列
+        final int MICHI_DATA = 20;//未知データの数
+        double[] avebuf;
+        double tmp;
+        int correct;//正答数
+        JacobiKey[][] yakobi = new JacobiKey[0][];//どっちみちtry catchで消える
+        try {
+            yakobi = getJakobiFromFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        //平均特徴量の配列を作成
+        for (int i = 0; i < KadaiData.FILE_NUM; i++) {
+            avebuf = getAvarage(i);
+            for (int j = 0; j < KadaiData.DATA_SIZE; j++) {
+                ave[i][j] = avebuf[j];
+            }
+        }
+
+        //46字種
+        for (int moji = 0; moji < KadaiData.FILE_NUM; moji++) {
+            correct = 0;
+            //未知データ
+            for (int m = 0; m < MICHI_DATA; m++) {
+                val = 10000000;//最初はでかい値を入れる
+                result = 0;//このまま変わらなかったら異常
+                for (int ch = 0; ch < KadaiData.FILE_NUM; ch++) {//全字種と比較
+                    d = 0;//初期化
+                    for (int i = 0; i < KadaiData.DATA_SIZE; i++) {
+                        buf = 0;//buf初期化
+                        for (int j = 0; j < KadaiData.DATA_SIZE; j++) {
+                            buf += (kadaiData.getComponentOf(moji, m, j) - ave[ch][j]) * yakobi[ch][i].getADatas()[j];
+
+                        }
+                        if (yakobi[ch][i].getLambda() > bios) {
+                            d += buf * buf / yakobi[ch][i].getLambda();
+                        } else {
+                            d += buf * buf / bios;
+                        }
+                    }
+                    if (val > d) {
+                        val = d;
+                        result = ch;
+                    }
+                }
+//                System.out.print(result + " ");
+                if (result == moji) correct++;
+            }
+
+            System.out.println("現在の文字：" + moji + " 一致率：" + correct + "/" + MICHI_DATA + "=" + String.format("%1$11.6f ", (double) correct / MICHI_DATA));
+        }
+    }
+
+    /**
+     * jacobikey形式でファイルを読み込みます。
+     *
+     * @return
+     * @throws IOException
+     */
+    public JacobiKey[][] getJakobiFromFile() throws IOException {
+        BufferedReader buf, buf2;
+        //ファイル確認
+        if (isExecuteJacobi() == false) {
+            try {
+                System.out.println("Jacobi法の計算結果が見つからないので計算します");
+                threadAdapter();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        JacobiKey[][] jacobi = new JacobiKey[KadaiData.FILE_NUM][KadaiData.DATA_SIZE];
+        double[][][] datas = new double[KadaiData.FILE_NUM][KadaiData.DATA_SIZE][KadaiData.DATA_SIZE];
+        double[] lambda = new double[KadaiData.DATA_SIZE];
+
+        for (int i = 0; i < KadaiData.FILE_NUM; i++) {
+            buf = new BufferedReader(new FileReader(new File(KadaiData.getFileName(i + 1, KadaiData.MODE_VECTOR_OUTPUT))));
+            buf2 = new BufferedReader(new FileReader(new File(KadaiData.getFileName(i + 1, KadaiData.MODE_LAMBDA_OUTPUT))));
+            for (int j = 0; j < KadaiData.DATA_SIZE; j++) {
+                String[] tmp = (buf.readLine()).trim().replaceAll("  *", " ").split(" ");
+                for (int k = 0; k < KadaiData.DATA_SIZE; k++) {
+                    datas[i][j][k] = Double.parseDouble(tmp[k]);
+                }
+                lambda[j] = Double.parseDouble(buf2.readLine());
+            }
+            buf.close();
+            buf2.close();
+
+            //まとめて配列に突っ込みます。
+            //行列をすべて転置
+            for (int j = 0; j < KadaiData.DATA_SIZE; j++) {
+                jacobi[i][j] = new JacobiKey(datas[i][j], lambda[j]);
+//                jacobi[i][j] = new JacobiKey(_tranpose(datas[i])[j], lambda[j]);
+            }
+        }
+
+        return jacobi;
+    }
+
+    /**
+     * 指定したJacobi行列計算結果のファイルがあるか確認
+     *
+     * @return
+     */
+    private boolean isExecuteJacobi() {
+        for (int i = 0; i < KadaiData.FILE_NUM; i++) {
+            if (new File(KadaiData.getFileName(i + 1, KadaiData.MODE_LAMBDA_OUTPUT)).exists() == false) return false;
+            if (new File(KadaiData.getFileName(i + 1, KadaiData.MODE_VECTOR_OUTPUT)).exists() == false) return false;
+        }
+        return true;
+    }
+
+    /**
+     * 行列の転置
+     *
+     * @param data
+     * @return
+     */
+    protected double[][] _tranpose(double[][] data) {
+        double[][] trans = new double[KadaiData.DATA_SIZE][KadaiData.DATA_SIZE];
+        for (int i = 0; i < KadaiData.DATA_SIZE; i++) {
+            for (int j = 0; j < KadaiData.DATA_SIZE; j++) {
+                trans[i][j] = data[j][i];
+            }
+        }
+        return trans;
+    }
+
+    /**
+     * Jacobi行列計算用のスレッドを作成します
+     *
+     * @throws InterruptedException
+     */
     public void threadAdapter() throws InterruptedException {
         long start = System.currentTimeMillis();
         int cnt = 0;
@@ -51,49 +195,8 @@ public class Kadai {
         }
         long end = System.currentTimeMillis();
         System.out.println("処理時間" + (end - start) + "ms");
-        System.out.println("1ファイルあたりの処理時間" + (int)(end - start) / KadaiData.FILE_NUM + "ms");
+        System.out.println("1ファイルあたりの処理時間" + (int) (end - start) / KadaiData.FILE_NUM + "ms");
     }
-//
-//    /**
-//     * ヤコビ行列を計算し、書き込みます
-//     *
-//     * @throws IOException          書き込みができなかった時
-//     * @throws EndressLoopException 値が収束しなかった時
-//     */
-//    public void writeJakobi() throws IOException, EndressLoopException {
-//        JacobiKey[] yakobi;
-//        for (int k = 0; k < KadaiData.FILE_NUM; k++) {
-//            long start = System.currentTimeMillis();
-//            yakobi = getJakobi(k);
-//            PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter(KadaiData.getFileName(k + 1, KadaiData.MODE_VECTOR_OUTPUT))));
-//            PrintWriter lm = new PrintWriter(new BufferedWriter(new FileWriter(KadaiData.getFileName(k + 1, KadaiData.MODE_LAMBDA_OUTPUT))));
-//            //ソートしました
-//            Collections.sort(Arrays.asList(yakobi), new Comparator<JacobiKey>() {
-//                @Override
-//                public int compare(JacobiKey o1, JacobiKey o2) {
-//                    if (o1.getLambda() < o2.getLambda()) {
-//                        return 1;
-//                    } else if (o1.getLambda() > o2.getLambda()) {
-//                        return -1;
-//                    } else {
-//                        return 0;
-//                    }
-//                }
-//            });
-//            for (int j = 0; j < KadaiData.DATA_SIZE; j++) {
-//                for (int i = 0; i < KadaiData.DATA_SIZE; i++) {
-//                    pw.print(String.format("%1$11.6f ", yakobi[j].getADatas()[i]));
-//                }
-//                lm.println(String.format("%1$11.6f ", yakobi[j].getLambda()));
-//                pw.println();
-//            }
-//            pw.close();
-//            lm.close();
-//            long end = System.currentTimeMillis();
-//            System.out.println("処理時間" + (end - start) + "ms");
-//            System.out.println(KadaiData.getFileName(k + 1, KadaiData.MODE_VECTOR_OUTPUT) + "　" + KadaiData.getFileName(k + 1, KadaiData.MODE_LAMBDA_OUTPUT) + "作成完了");
-//        }
-//    }
 
     /**
      * 対角行列を返します。
@@ -259,14 +362,14 @@ public class Kadai {
     /**
      * 指定されている文字の各データ毎の特徴量の平均を返します
      *
-     * @param input 指定された文字
+     * @param moji 指定された文字
      * @return
      */
-    public double[] getAvarage(int input) {
+    public double[] getAvarage(int moji) {
         double[] avarage = new double[KadaiData.DATA_SIZE];
         for (int j = 0; j < KadaiData.DATA_SIZE; j++) {
             for (int i = 0; i < KadaiData.DATA_ARRAY; i++) {
-                avarage[j] += kadaiData.getConponentOf(input, i, j);
+                avarage[j] += kadaiData.getComponentOf(moji, i, j);
             }
         }
         for (int i = 0; i < KadaiData.DATA_SIZE; i++) {
@@ -287,7 +390,7 @@ public class Kadai {
         for (int i = 0; i < KadaiData.DATA_SIZE; i++) {
             for (int j = 0; j < KadaiData.DATA_SIZE; j++) {
                 for (int k = 0; k < KadaiData.DATA_ARRAY; k++) {
-                    result[i][j] += kadaiData.getConponentOf(moji, k, i) * kadaiData.getConponentOf(moji, k, j);
+                    result[i][j] += kadaiData.getComponentOf(moji, k, i) * kadaiData.getComponentOf(moji, k, j);
                 }
                 result[i][j] /= KadaiData.DATA_ARRAY;
                 result[i][j] -= ave[i] * ave[j];
@@ -357,6 +460,8 @@ public class Kadai {
                 for (int j = 0; j < KadaiData.DATA_SIZE; j++) {
                     for (int i = 0; i < KadaiData.DATA_SIZE; i++) {
                         pw.print(String.format("%1$11.6f ", yakobi[j].getADatas()[i]));
+//                        pw.print(String.format("%1$.6f", yakobi[j].getADatas()[i]));
+//                        if (i + 1 != KadaiData.DATA_SIZE) pw.print(",");
                     }
                     lm.println(String.format("%1$11.6f ", yakobi[j].getLambda()));
                     pw.println();
@@ -368,4 +473,47 @@ public class Kadai {
 
         }
     }
+
+    //
+//    /**
+//     * ヤコビ行列を計算し、書き込みます
+//     *
+//     * @throws IOException          書き込みができなかった時
+//     * @throws EndressLoopException 値が収束しなかった時
+//     */
+//    public void writeJakobi() throws IOException, EndressLoopException {
+//        JacobiKey[] yakobi;
+//        for (int k = 0; k < KadaiData.FILE_NUM; k++) {
+//            long start = System.currentTimeMillis();
+//            yakobi = getJakobi(k);
+//            PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter(KadaiData.getFileName(k + 1, KadaiData.MODE_VECTOR_OUTPUT))));
+//            PrintWriter lm = new PrintWriter(new BufferedWriter(new FileWriter(KadaiData.getFileName(k + 1, KadaiData.MODE_LAMBDA_OUTPUT))));
+//            //ソートしました
+//            Collections.sort(Arrays.asList(yakobi), new Comparator<JacobiKey>() {
+//                @Override
+//                public int compare(JacobiKey o1, JacobiKey o2) {
+//                    if (o1.getLambda() < o2.getLambda()) {
+//                        return 1;
+//                    } else if (o1.getLambda() > o2.getLambda()) {
+//                        return -1;
+//                    } else {
+//                        return 0;
+//                    }
+//                }
+//            });
+//            for (int j = 0; j < KadaiData.DATA_SIZE; j++) {
+//                for (int i = 0; i < KadaiData.DATA_SIZE; i++) {
+//                    pw.print(String.format("%1$11.6f ", yakobi[j].getADatas()[i]));
+//                }
+//                lm.println(String.format("%1$11.6f ", yakobi[j].getLambda()));
+//                pw.println();
+//            }
+//            pw.close();
+//            lm.close();
+//            long end = System.currentTimeMillis();
+//            System.out.println("処理時間" + (end - start) + "ms");
+//            System.out.println(KadaiData.getFileName(k + 1, KadaiData.MODE_VECTOR_OUTPUT) + "　" + KadaiData.getFileName(k + 1, KadaiData.MODE_LAMBDA_OUTPUT) + "作成完了");
+//        }
+//    }
+
 }
