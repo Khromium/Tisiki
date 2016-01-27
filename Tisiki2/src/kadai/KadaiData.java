@@ -18,7 +18,7 @@ public class KadaiData {
     public static final int MODE_VECTOR_OUTPUT = 3;//固有ベクトル
     public static final int MODE_LAMBDA_OUTPUT = 4;//固有値
     public static final int DATA_SIZE = 196;        //データのサイズ
-    public static final int DATA_ARRAY = 200;       //1ファイルのデータの個数
+    public static final int DATA_ARRAY = 180;       //1ファイルのデータの個数
     //ファイルとデータの配列
     //[文字の種類][文字の数][特徴量]
     private double datas[][][];
@@ -39,10 +39,10 @@ public class KadaiData {
      */
     public void getDatas() throws IOException {
         BufferedReader buf;
-        datas = new double[FILE_NUM][DATA_ARRAY][DATA_SIZE];
+        datas = new double[FILE_NUM][200][DATA_SIZE];
         for (int i = 0; i < FILE_NUM; i++) {
             buf = new BufferedReader(new FileReader(new File(getFileName(i + 1, MODE_FILE_INPUT))));
-            for (int j = 0; j < DATA_ARRAY; j++) {
+            for (int j = 0; j < 200; j++) {
                 for (int k = 0; k < DATA_SIZE; k++) {
                     datas[i][j][k] = Double.parseDouble(buf.readLine());
                 }
